@@ -7,7 +7,7 @@ import vtkTexture from 'vtk.js/Sources/Rendering/Core/Texture';
 import vtkTextureLODsDownloader from 'vtk.js/Sources/Rendering/Misc/TextureLODsDownloader';
 import vtkHttpDataSetLODsLoader from 'vtk.js/Sources/IO/Misc/HttpDataSetLODsLoader';
 import vtkColorTransferFunction from 'vtk.js/Sources/Rendering/Core/ColorTransferFunction';
-
+import vtkTimeStepBasedAnimationHandler from 'vtk.js/Sources/Rendering/Misc/Animations/TimeStepBasedAnimationHandler';
 import DataAccessHelper from 'vtk.js/Sources/IO/Core/DataAccessHelper';
 
 const { vtkErrorMacro } = macro;
@@ -189,6 +189,11 @@ function loadHttpDataSetReader(item, model, publicAPI) {
     });
 
   applySettings(sceneItem, item);
+
+  if (item.id) {
+    sceneItem.id = item.id;
+  }
+
   model.scene.push(sceneItem);
 
   const { sourceLODs } = item;
@@ -213,8 +218,31 @@ function loadHttpDataSetReader(item, model, publicAPI) {
 
 // ----------------------------------------------------------------------------
 
+function loadTimeStepBasedAnimationHandler(
+  data,
+  model,
+  publicAPI,
+  setCameraParameters,
+  setBackground
+) {
+  model.animationHandler = vtkTimeStepBasedAnimationHandler.newInstance({
+    scene: model.scene,
+    originalMetadata: model.metadata,
+    applySettings,
+    setCameraParameters,
+    setBackground,
+  });
+  model.animationHandler.setData(data);
+}
+
+// ----------------------------------------------------------------------------
+
 const TYPE_MAPPING = {
   httpDataSetReader: loadHttpDataSetReader,
+};
+
+const ANIMATION_TYPE_MAPPING = {
+  timeStepBasedAnimationHandler: loadTimeStepBasedAnimationHandler,
 };
 
 // ----------------------------------------------------------------------------
@@ -257,6 +285,12 @@ function vtkHttpSceneLoader(publicAPI, model) {
     }
   }
 
+  function setBackground(color) {
+    if (model.renderer) {
+      model.renderer.setBackground(color);
+    }
+  }
+
   // Create default dataAccessHelper if not available
   if (!model.dataAccessHelper) {
     model.dataAccessHelper = DataAccessHelper.get('http');
@@ -269,7 +303,7 @@ function vtkHttpSceneLoader(publicAPI, model) {
           model.fetchGzip = data.fetchGzip;
         }
         if (data.background && model.renderer) {
-          model.renderer.setBackground(...data.background);
+          setBackground(...data.background);
         }
         if (data.camera) {
           originalSceneParameters.camera = data.camera;
@@ -277,6 +311,7 @@ function vtkHttpSceneLoader(publicAPI, model) {
         }
         const luts = {};
         if (data.lookupTables) {
+          // TODO: should this be animated ?
           Object.keys(data.lookupTables).forEach((fieldName) => {
             const config = data.lookupTables[fieldName];
             const lookupTable = vtkColorTransferFunction.newInstance(config);
@@ -303,8 +338,20 @@ function vtkHttpSceneLoader(publicAPI, model) {
           model.usedTextures = {};
           model.usedTextureLODs = {};
         }
+
         // Capture index.json into meta
         model.metadata = data;
+
+        if (data.animation) {
+          const animationLoader = ANIMATION_TYPE_MAPPING[data.animation.type];
+          animationLoader(
+            { ...data.animation },
+            model,
+            publicAPI,
+            setCameraParameters,
+            setBackground
+          );
+        }
       },
       (error) => {
         vtkErrorMacro(`Error fetching scene ${error}`);
@@ -345,6 +392,7 @@ const DEFAULT_VALUES = {
   fetchGzip: false,
   url: null,
   baseURL: null,
+  animationHandler: null,
   // Whether or not to automatically start texture LOD and poly LOD
   // downloads when they are read.
   startLODLoaders: true,
@@ -363,6 +411,7 @@ export function extend(publicAPI, model, initialValues = {}) {
     'baseURL',
     'scene',
     'metadata',
+    'animationHandler',
   ]);
   macro.setGet(publicAPI, model, ['renderer']);
   macro.event(publicAPI, model, 'ready');
