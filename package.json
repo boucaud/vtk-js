@@ -32,10 +32,11 @@
     "blueimp-md5": "2.18.0",
     "commander": "6.2.0",
     "gl-matrix": "3.3.0",
-    "jszip": "3.5.0",
+    "jszip": "3.2.0",
     "pako": "1.0.11",
     "seedrandom": "3.0.5",
     "shelljs": "0.8.4",
+    "stream": "0.0.2",
     "webvr-polyfill": "0.10.12",
     "webworker-promise": "0.4.2",
     "xmlbuilder": "15.1.1"
