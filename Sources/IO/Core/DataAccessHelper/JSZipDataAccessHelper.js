@@ -72,7 +72,9 @@ const handlers = {
 };
 
 function removeLeadingSlash(str) {
-  return str[0] === '/' ? str.substr(1) : str;
+  // Hacky way to normalize the path. TODO: ask about this.
+  const url = new URL(str, 'http://any').pathname;
+  return url[0] === '/' ? url.substr(1) : url;
 }
 
 function create(createOptions) {
@@ -140,7 +142,6 @@ function create(createOptions) {
           options.compression,
           doneCleanUp
         );
-
         zipRoot.file(url).async(asyncType).then(asyncCallback);
       });
     },
@@ -163,7 +164,6 @@ function create(createOptions) {
         }
         return Promise.reject(new Error('Invalid compression'));
       }
-
       return zipRoot
         .file(path)
         .async('string')
